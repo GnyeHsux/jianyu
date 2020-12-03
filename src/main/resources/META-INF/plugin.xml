@@ -24,4 +24,10 @@
     <extensions defaultExtensionNs="com.intellij">
         <executor implementation="icu.whycode.JianyuRunExecutor" id="CustomRunExecutor"/>
     </extensions>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- Add your extensions here -->
+<!--        <toolWindow id="Jian Yu" secondary="true" icon="AllIcons.General.Modified" anchor="bottom"-->
+<!--                    factoryClass="icu.whycode.test.MyToolWindowFactory"/>-->
+    </extensions>
 </idea-plugin>

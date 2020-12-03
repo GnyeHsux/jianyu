@@ -20,21 +20,26 @@ import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.util.Disposer;
-import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.content.Content;
+import icu.whycode.entity.TreeHole;
+import icu.whycode.website.JianYuTreeHolePageProcessor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import us.codecraft.webmagic.ResultItems;
+import us.codecraft.webmagic.Spider;
+import us.codecraft.webmagic.Task;
+import us.codecraft.webmagic.pipeline.ConsolePipeline;
+import us.codecraft.webmagic.pipeline.JsonFilePipeline;
+import us.codecraft.webmagic.pipeline.Pipeline;
 
 import javax.swing.*;
-import java.awt.*;
+import java.util.List;
 
 public class JianyuExecutor implements Disposable {
 
     private ConsoleView consoleView = null;
 
     private Project project = null;
-
-    private Computable<Boolean> stopEnabled;
 
     public JianyuExecutor(Project project) {
         this.project = project;
@@ -47,8 +52,7 @@ public class JianyuExecutor implements Disposable {
     }
 
     public JianyuExecutor withStop(Runnable stopAction, Computable<Boolean> stopEnabled) {
-        this.stopAction = stopAction;
-        this.stopEnabled = stopEnabled;
+        this.nextAction = stopAction;
         return this;
     }
 
@@ -57,13 +61,29 @@ public class JianyuExecutor implements Disposable {
         Disposer.dispose(this);
     }
 
+    private int listIndex = 0;
+    private List<TreeHole> treeHoleList;
+    private String nextPageUrl = "";
+    private Spider spider;
+
     private ConsoleView createConsoleView(Project project) {
         TextConsoleBuilder consoleBuilder = TextConsoleBuilderFactory.getInstance().createBuilder(project);
         ConsoleView console = consoleBuilder.getConsole();
-        console.print("每当我想恋爱的时候智商都会降低一大截，好在我从来没有过一次真正意义上的恋爱。\n", ConsoleViewContentType.LOG_INFO_OUTPUT);
-        console.print("每当我想恋爱的时候智商都会降低一大截，好在我从来没有过一次真正意义上的恋爱。\n", ConsoleViewContentType.NORMAL_OUTPUT);
-        console.print("每当我想恋爱的时候智商都会降低一大截，好在我从来没有过一次真正意义上的恋爱。\n", ConsoleViewContentType.SYSTEM_OUTPUT);
-        console.print("每当我想恋爱的时候智商都会降低一大截，好在我从来没有过一次真正意义上的恋爱。\n", ConsoleViewContentType.LOG_VERBOSE_OUTPUT);
+        // 刷新煎蛋树洞，输出第一个树洞
+//        Spider.create(new JianYuTreeHolePageProcessor()).addUrl("https://jandan.net/treehole").addPipeline(new ConsolePipeline()).run();
+        listIndex = 0;
+        console.print("请求煎鱼树洞中。。。", ConsoleViewContentType.LOG_WARNING_OUTPUT);
+        spider = Spider.create(new JianYuTreeHolePageProcessor()).addUrl("https://jandan.net/treehole")
+                .addPipeline((ResultItems resultItems, Task task) -> {
+                    nextPageUrl = resultItems.get("nextPageUrl");
+                    treeHoleList = resultItems.get("treeHoleList");
+                    if (treeHoleList.size() > 0) {
+                        console.clear();
+                        console.print("洞主：" + treeHoleList.get(0).getAuthor() + "\n", ConsoleViewContentType.LOG_WARNING_OUTPUT);
+                        console.print("内容：" + treeHoleList.get(0).getText(), ConsoleViewContentType.NORMAL_OUTPUT);
+                    }
+                }).thread(1);
+        spider.start();
         return console;
     }
 
@@ -80,7 +100,7 @@ public class JianyuExecutor implements Disposable {
         final RunnerLayoutUi.Factory factory = RunnerLayoutUi.Factory.getInstance(project);
         RunnerLayoutUi layoutUi = factory.create("runnerId", "runnerTitle", "sessionName", project);
 
-        final JPanel consolePanel = createConsolePanel(consoleView);
+        final JComponent consolePanel = createConsolePanel(consoleView);
 
         // 设置面板信息
         RunContentDescriptor descriptor = new RunContentDescriptor(new RunProfile() {
@@ -119,20 +139,24 @@ public class JianyuExecutor implements Disposable {
         ExecutionManager.getInstance(project).getContentManager().showRunContent(executor, descriptor);
     }
 
-    private JPanel createConsolePanel(ConsoleView consoleView) {
+    private JComponent createConsolePanel(ConsoleView consoleView) {
         JPanel panel = new JPanel();
         panel.add(consoleView.getComponent());
-        return panel;
+        return consoleView.getComponent();
     }
 
+
     private Runnable rerunAction;
-    private Runnable stopAction;
+    private Runnable nextAction;
 
     private ActionGroup createActionToolbar(JComponent consolePanel, ConsoleView consoleView, RunnerLayoutUi layoutUi, RunContentDescriptor descriptor, Executor executor) {
         final DefaultActionGroup actionGroup = new DefaultActionGroup();
-        actionGroup.add(new TreeHoleAction("tree hole", "tree hole", IconUtil.ICON, consoleView));
+//        actionGroup.add(new TreeHoleAction("tree hole", "tree hole", IconUtil.ICON, consoleView));
         actionGroup.add(new RerunAction(consolePanel, consoleView));
-        actionGroup.add(new StopAction());
+        NextAction next = new NextAction(consoleView);
+        actionGroup.add(next);
+        BackAction backAction = new BackAction(consoleView);
+        actionGroup.add(backAction);
         return actionGroup;
     }
 
@@ -140,7 +164,7 @@ public class JianyuExecutor implements Disposable {
         private final ConsoleView consoleView;
 
         public RerunAction(JComponent consolePanel, ConsoleView consoleView) {
-            super("刷新树洞", "刷新树洞", AllIcons.Actions.Restart);
+            super("Refresh", "刷新树洞", AllIcons.Actions.Restart);
             this.consoleView = consoleView;
             registerCustomShortcutSet(CommonShortcuts.getRerun(), consolePanel);
         }
@@ -158,20 +182,77 @@ public class JianyuExecutor implements Disposable {
         }
     }
 
-    private class StopAction extends AnAction implements DumbAware {
-        public StopAction() {
-            super("Stop", "Stop", AllIcons.Actions.Suspend);
+    private class NextAction extends AnAction implements DumbAware {
+        private final ConsoleView consoleView;
+
+        public NextAction(ConsoleView consoleView) {
+            super("Next", "下一条", AllIcons.Actions.NextOccurence);
+            this.consoleView = consoleView;
         }
 
         @Override
         public void actionPerformed(AnActionEvent e) {
-            stopAction.run();
+            nextAction.run();
+            // 输出下一条
+            if (listIndex + 1 <= treeHoleList.size() - 1) {
+                listIndex++;
+                consolePrint(treeHoleList.get(listIndex));
+            } else {
+                // 加载下一页
+                consoleWarmPrint("加载下一页中。。。");
+                spider.stop();
+                spider = Spider.create(new JianYuTreeHolePageProcessor()).addUrl("https:" + nextPageUrl)
+                        .addPipeline((ResultItems resultItems, Task task) -> {
+                            nextPageUrl = resultItems.get("nextPageUrl");
+                            treeHoleList.addAll(resultItems.get("treeHoleList"));
+                            actionPerformed(e);
+                        }).thread(1);
+                spider.start();
+            }
         }
 
         @Override
         public void update(AnActionEvent e) {
-            e.getPresentation().setVisible(stopAction != null);
-            e.getPresentation().setEnabled(stopEnabled != null && stopEnabled.compute());
+            if (treeHoleList != null) {
+                e.getPresentation().setEnabled(listIndex + 1 <= treeHoleList.size());
+            }
         }
+    }
+
+    private class BackAction extends AnAction implements DumbAware {
+        private final ConsoleView consoleView;
+
+        public BackAction(ConsoleView consoleView) {
+            super("Back", "上一条", AllIcons.Actions.Back);
+            this.consoleView = consoleView;
+        }
+
+        @Override
+        public void actionPerformed(AnActionEvent e) {
+            nextAction.run();
+            // 输出上一条
+            if (listIndex - 1 >= 0) {
+                listIndex--;
+                consolePrint(treeHoleList.get(listIndex));
+            } else {
+                consoleWarmPrint("前面没有了哦...");
+            }
+        }
+
+        @Override
+        public void update(AnActionEvent e) {
+            e.getPresentation().setEnabled(listIndex - 1 >= 0);
+        }
+    }
+
+    private void consolePrint(TreeHole treeHole) {
+        consoleView.clear();
+        consoleView.print("洞主：" + treeHole.getAuthor() + "\n", ConsoleViewContentType.LOG_WARNING_OUTPUT);
+        consoleView.print("内容：" + treeHole.getText(), ConsoleViewContentType.NORMAL_OUTPUT);
+    }
+
+    private void consoleWarmPrint(String msg) {
+        consoleView.clear();
+        consoleView.print(msg, ConsoleViewContentType.NORMAL_OUTPUT);
     }
 }

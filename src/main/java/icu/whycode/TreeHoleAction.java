@@ -23,6 +23,6 @@ public class TreeHoleAction extends AnAction {
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
 //        Messages.showMessageDialog("树洞", "Custom Action", Messages.getInformationIcon());
-        consoleView.print("凉瓜铺。\n", ConsoleViewContentType.NORMAL_OUTPUT);
+        consoleView.print("刷新凉瓜铺。\n", ConsoleViewContentType.NORMAL_OUTPUT);
     }
 }
