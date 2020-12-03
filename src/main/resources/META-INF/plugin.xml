@@ -1,11 +1,11 @@
 <idea-plugin>
-    <id>org.example.idea-demo</id>
-    <name>Plugin display name here</name>
-    <vendor email="support@yourcompany.com" url="http://www.yourcompany.com">YourCompany</vendor>
+    <id>icu.whycode.jianyu</id>
+    <name>JianYu</name>
+    <vendor email="xushaneone@gmail.com" url="https://whycode.icu">whyCode.icu</vendor>
 
     <description><![CDATA[
-    Enter short description for your plugin here.<br>
-    <em>most HTML tags may be used</em>
+    简单的刷煎蛋树洞插件<br>
+    <em>有 bug 请联系作者 xushaneone@gmail.com</em>
     ]]></description>
 
     <!-- please see https://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/plugin_compatibility.html
